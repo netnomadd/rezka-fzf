@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=rezka-fzf
+GenericName=HDRezka
+Comment=HDRezka client (fzf or Gofer, playback in mpv)
+Exec=rezka-fzf %u
+Terminal=false
+Categories=AudioVideo;Video;
+MimeType=x-scheme-handler/rezka;
+StartupNotify=false
