@@ -359,9 +359,9 @@ func (a *App) contentMenu() (string, bool) {
 		items = append(items, Item{Display: "Add to favorites", Value: "fav_add"})
 	}
 	if a.isSeries {
-		items = append(items, Item{Display: "Export all episode URLs to file", Value: "export_series"})
+		items = append(items, Item{Display: "Save playlist (.m3u)", Value: "export_series"})
 	} else {
-		items = append(items, Item{Display: "Export movie URLs to file", Value: "export_movie"})
+		items = append(items, Item{Display: "Save playlist (.m3u)", Value: "export_movie"})
 	}
 
 	idStr := ""
@@ -596,7 +596,7 @@ func (a *App) play(season, episode int) {
 	}
 }
 
-// ---------- экспорт ссылок ----------
+// ---------- плейлист ----------
 
 func (a *App) allEpisodes() []epRef {
 	eps, err := a.episodesFor(a.tr)
@@ -622,7 +622,7 @@ func (a *App) chooseExportQuality(s *hdrezka.Stream) (string, bool) {
 	for i, q := range quals {
 		items[i] = Item{Display: q, Value: q}
 	}
-	idx, ok := a.menu.Select("Quality for export", items)
+	idx, ok := a.menu.Select("Quality", items)
 	if !ok {
 		return "", false
 	}
@@ -630,7 +630,7 @@ func (a *App) chooseExportQuality(s *hdrezka.Stream) (string, bool) {
 }
 
 func (a *App) exportFileName(quality string) string {
-	return fmt.Sprintf("%s_%s_%s_urls.txt",
+	return fmt.Sprintf("%s_%s_%s.m3u",
 		safeName(clean(a.video.Title)), safeName(quality), safeName(a.tr.Name))
 }
 
@@ -653,7 +653,7 @@ func (a *App) exportSeries() {
 		return
 	}
 
-	results := make([][]string, len(refs))
+	results := make([]string, len(refs))
 	errs := make([]error, len(refs))
 	var (
 		wg   sync.WaitGroup
@@ -667,13 +667,17 @@ func (a *App) exportSeries() {
 		go func(i int, ref epRef) {
 			defer func() { <-sem; wg.Done() }()
 			st, err := a.tr.GetStream(ref.season, ref.episode)
+			urls := []string(nil)
+			if err == nil {
+				urls = streamURLs(st, quality, a.preferHLS)
+			}
 			switch {
 			case err != nil:
 				errs[i] = err
-			case len(streamURLs(st, quality, false)) == 0:
+			case len(urls) == 0:
 				errs[i] = fmt.Errorf("quality %s unavailable", quality)
 			default:
-				results[i] = streamURLs(st, quality, false)
+				results[i] = urls[0]
 			}
 			mu.Lock()
 			done++
@@ -685,37 +689,34 @@ func (a *App) exportSeries() {
 	fmt.Fprintln(os.Stderr)
 
 	title := clean(a.video.Title)
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s — %s — %s\n%s\n\n", title, quality, a.tr.Name, strings.Repeat("=", 60))
-	lastSeason := -1
+	var entries []m3uEntry
+	failed := 0
 	for i, ref := range refs {
-		if ref.season != lastSeason {
-			if lastSeason != -1 {
-				b.WriteString("\n")
-			}
-			fmt.Fprintf(&b, "Season %d\n%s\n", ref.season, strings.Repeat("-", 40))
-			lastSeason = ref.season
-		}
-		fmt.Fprintf(&b, "\nS%02dE%02d\n", ref.season, ref.episode)
 		if errs[i] != nil {
-			fmt.Fprintf(&b, "  ERROR: %v\n", errs[i])
+			failed++
+			fmt.Fprintf(os.Stderr, "S%02dE%02d: %v\n", ref.season, ref.episode, errs[i])
 			continue
 		}
-		for j, u := range results[i] {
-			prefix := "  "
-			if len(results[i]) > 1 {
-				prefix = fmt.Sprintf("  [%d] ", j+1)
-			}
-			b.WriteString(prefix + u + "\n")
-		}
+		entries = append(entries, m3uEntry{
+			title: fmt.Sprintf("%s S%02dE%02d", title, ref.season, ref.episode),
+			url:   results[i],
+		})
+	}
+	if len(entries) == 0 {
+		a.msg("No episodes to export")
+		return
 	}
 
 	name := a.exportFileName(quality)
-	if err := os.WriteFile(name, []byte(b.String()), 0o644); err != nil {
+	if err := os.WriteFile(name, []byte(m3uPlaylist(entries)), 0o644); err != nil {
 		a.msg("Error: %v", err)
 		return
 	}
-	a.msg("✓ %d episodes (%s) → %s", len(refs), quality, name)
+	if failed > 0 {
+		a.msg("✓ %d episodes, %d failed (%s) → %s", len(entries), failed, quality, name)
+		return
+	}
+	a.msg("✓ %d episodes (%s) → %s", len(entries), quality, name)
 }
 
 func (a *App) exportMovie() {
@@ -731,27 +732,36 @@ func (a *App) exportMovie() {
 	if !ok {
 		return
 	}
-	urls := streamURLs(stream, quality, false)
+	urls := streamURLs(stream, quality, a.preferHLS)
 	if len(urls) == 0 {
 		a.msg("No URLs for %s", quality)
 		return
 	}
 
 	title := clean(a.video.Title)
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s — %s — %s\n%s\n\n", title, quality, a.tr.Name, strings.Repeat("=", 60))
-	for i, u := range urls {
-		if len(urls) > 1 {
-			fmt.Fprintf(&b, "[%d] ", i+1)
-		}
-		b.WriteString(u + "\n")
-	}
 	name := a.exportFileName(quality)
-	if err := os.WriteFile(name, []byte(b.String()), 0o644); err != nil {
+	body := m3uPlaylist([]m3uEntry{{title: title, url: urls[0]}})
+	if err := os.WriteFile(name, []byte(body), 0o644); err != nil {
 		a.msg("Error: %v", err)
 		return
 	}
 	a.msg("✓ %s (%s) → %s", title, quality, name)
+}
+
+type m3uEntry struct {
+	title string
+	url   string
+}
+
+// m3uPlaylist пишет extended M3U: плеер открывает файл как очередь.
+func m3uPlaylist(entries []m3uEntry) string {
+	var b strings.Builder
+	b.WriteString("#EXTM3U\n")
+	for _, e := range entries {
+		title := clean(strings.ReplaceAll(e.title, ",", " "))
+		fmt.Fprintf(&b, "#EXTINF:-1,%s\n%s\n", title, e.url)
+	}
+	return b.String()
 }
 
 // ---------- точки входа ----------
