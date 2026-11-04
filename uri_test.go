@@ -4,9 +4,8 @@ import "testing"
 
 func TestNormalizeLaunchArg(t *testing.T) {
 	cases := []struct {
-		in     string
-		direct string
-		fav    bool
+		in, direct, search string
+		fav                bool
 	}{
 		{in: "", direct: ""},
 		{in: "434365", direct: "434365"},
@@ -28,11 +27,14 @@ func TestNormalizeLaunchArg(t *testing.T) {
 		{in: "rezka://", direct: ""},
 		{in: "rezka:///", direct: ""},
 		{in: "rezka://434365#t", direct: "434365"},
+		{in: "rezka://search/хищник", search: "хищник"},
+		{in: "rezka://search?q=%D1%85%D0%B8%D1%89%D0%BD%D0%B8%D0%BA+1987", search: "хищник 1987"},
+		{in: "rezka://search/", direct: ""},
 	}
 	for _, tc := range cases {
-		direct, fav := normalizeLaunchArg(tc.in)
-		if direct != tc.direct || fav != tc.fav {
-			t.Errorf("normalizeLaunchArg(%q) = (%q, %v), want (%q, %v)", tc.in, direct, fav, tc.direct, tc.fav)
+		direct, fav, search := normalizeLaunchArg(tc.in)
+		if direct != tc.direct || fav != tc.fav || search != tc.search {
+			t.Errorf("normalizeLaunchArg(%q) = (%q, %v, %q), want (%q, %v, %q)", tc.in, direct, fav, search, tc.direct, tc.fav, tc.search)
 		}
 	}
 }
@@ -52,23 +54,28 @@ func TestContentURL(t *testing.T) {
 }
 
 func TestLaunchTarget(t *testing.T) {
-	direct, fav := launchTarget("", false, []string{"rezka://434365"})
-	if direct != "434365" || fav {
-		t.Fatalf("positional uri: got (%q, %v)", direct, fav)
+	direct, fav, search := launchTarget("", false, []string{"rezka://434365"})
+	if direct != "434365" || fav || search != "" {
+		t.Fatalf("positional uri: got (%q, %v, %q)", direct, fav, search)
 	}
 
-	direct, fav = launchTarget("10", true, []string{"rezka://favorites"})
-	if direct != "10" || !fav {
-		t.Fatalf("flag wins over favorites uri: got (%q, %v)", direct, fav)
+	direct, fav, search = launchTarget("10", true, []string{"rezka://favorites"})
+	if direct != "10" || !fav || search != "" {
+		t.Fatalf("flag wins over favorites uri: got (%q, %v, %q)", direct, fav, search)
 	}
 
-	direct, fav = launchTarget("rezka://favorites", false, nil)
-	if direct != "" || !fav {
-		t.Fatalf("-url favorites: got (%q, %v)", direct, fav)
+	direct, fav, search = launchTarget("rezka://favorites", false, nil)
+	if direct != "" || !fav || search != "" {
+		t.Fatalf("-url favorites: got (%q, %v, %q)", direct, fav, search)
 	}
 
-	direct, fav = launchTarget("", false, []string{"rezka://111", "rezka://222"})
-	if direct != "111" || fav {
-		t.Fatalf("first positional: got (%q, %v)", direct, fav)
+	direct, fav, search = launchTarget("", false, []string{"rezka://111", "rezka://222"})
+	if direct != "111" || fav || search != "" {
+		t.Fatalf("first positional: got (%q, %v, %q)", direct, fav, search)
+	}
+
+	_, _, search = launchTarget("", false, []string{"rezka://search?q=хищник+1987"})
+	if search != "хищник 1987" {
+		t.Fatalf("search uri: %q", search)
 	}
 }

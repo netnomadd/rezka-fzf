@@ -237,6 +237,10 @@ func (a *App) searchAndSelect() (url string, id int, ok bool) {
 	if !ok {
 		return "", 0, false
 	}
+	return a.searchQuery(query)
+}
+
+func (a *App) searchQuery(query string) (url string, id int, ok bool) {
 	results, err := a.r.Search(query, 50)
 	if err != nil {
 		a.msg("Search error: %v", err)
@@ -789,20 +793,28 @@ func (a *App) RunDirect(input string) {
 	}
 }
 
-func (a *App) Run(openFavorites bool) {
+func (a *App) Run(openFavorites bool, initialQuery string) {
 	for {
 		var (
 			url string
 			id  int
 			ok  bool
 		)
-		if openFavorites {
+		switch {
+		case openFavorites:
 			openFavorites = false
 			url, id, ok = a.browseFavorites()
 			if !ok {
 				continue
 			}
-		} else {
+		case initialQuery != "":
+			q := initialQuery
+			initialQuery = ""
+			url, id, ok = a.searchQuery(q)
+			if !ok {
+				continue
+			}
+		default:
 			url, id, ok = a.searchAndSelect()
 			if !ok {
 				items := []Item{

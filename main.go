@@ -12,13 +12,17 @@ func main() {
 	authFile := flag.String("authFile", "", "path to a file with username and password (plain lines or key=value)")
 	favorites := flag.Bool("favorites", false, "open favorites list on startup")
 	direct := flag.String("url", "", "open by URL, slug, ID, or rezka:// URI (e.g. 'https://hdrezka.ag/434365-pantheon.html', '434365', 'rezka://favorites')")
+	search := flag.String("search", "", "open the result list for this query")
 	menuKind := flag.String("menu", "", "menu backend: auto | fzf | gofer (overrides config)")
 	playerName := flag.String("player", "", "player: auto | mpv | vlc | celluloid | post2mpv-menu | command (overrides config)")
 	playerArgs := flag.String("player-args", "", "extra player arguments, e.g. \"-a play\" for post2mpv-menu")
 	hls := flag.Bool("hls", false, "prefer HLS stream over MP4")
 	flag.Parse()
 
-	directURL, openFavorites := launchTarget(*direct, *favorites, flag.Args())
+	directURL, openFavorites, query := launchTarget(*direct, *favorites, flag.Args())
+	if query == "" {
+		query = *search
+	}
 
 	cfg, err := LoadConfig(*authFile)
 	if err != nil {
@@ -59,7 +63,7 @@ func main() {
 		app.RunDirect(directURL)
 		return
 	}
-	app.Run(openFavorites)
+	app.Run(openFavorites, query)
 }
 
 func die(err error) {

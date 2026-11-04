@@ -15,18 +15,20 @@ import (
 //	rezka://hdrezka.ag/123-title.html
 //	rezka://https://hdrezka.ag/123-title.html
 //	rezka://favorites
+//	rezka://search/хищник
+//	rezka://search?q=хищник+1987
 //
 // Без схемы строка возвращается как есть: её уже понимает -url
 // (полный http(s), slug или ID).
-func normalizeLaunchArg(raw string) (direct string, favorites bool) {
+func normalizeLaunchArg(raw string) (direct string, favorites bool, search string) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "", false
+		return "", false, ""
 	}
 
 	const scheme = "rezka:"
 	if len(raw) < len(scheme) || !strings.EqualFold(raw[:len(scheme)], scheme) {
-		return raw, false
+		return raw, false, ""
 	}
 
 	rest := raw[len(scheme):]
@@ -41,7 +43,7 @@ func normalizeLaunchArg(raw string) (direct string, favorites bool) {
 	rest = repairEmbeddedHTTP(rest)
 	rest = strings.TrimSpace(rest)
 	if rest == "" {
-		return "", false
+		return "", false, ""
 	}
 
 	base, query, _ := strings.Cut(rest, "?")
@@ -51,15 +53,18 @@ func normalizeLaunchArg(raw string) (direct string, favorites bool) {
 	base = strings.TrimRight(base, "/")
 	key := strings.Trim(base, "/")
 	if strings.EqualFold(key, "favorites") || strings.EqualFold(key, "favs") {
-		return "", true
+		return "", true, ""
+	}
+	if q, ok := searchQuery(key, query); ok {
+		return "", false, q
 	}
 
 	low := strings.ToLower(base)
 	if strings.HasPrefix(low, "http://") || strings.HasPrefix(low, "https://") {
 		if query != "" {
-			return base + "?" + query, false
+			return base + "?" + query, false, ""
 		}
-		return base, false
+		return base, false, ""
 	}
 
 	if host, path, ok := splitHostPath(base); ok {
@@ -67,10 +72,37 @@ func normalizeLaunchArg(raw string) (direct string, favorites bool) {
 		if query != "" {
 			u += "?" + query
 		}
-		return u, false
+		return u, false, ""
 	}
 
-	return strings.TrimLeft(base, "/"), false
+	return strings.TrimLeft(base, "/"), false, ""
+}
+
+// searchQuery читает rezka://search/текст и rezka://search?q=текст.
+// Плюс в запросе — пробел, как у url.QueryEscape, которым Gofer подставляет %s.
+func searchQuery(key, rawQuery string) (string, bool) {
+	head, tail, _ := strings.Cut(strings.Trim(key, "/"), "/")
+	if !strings.EqualFold(head, "search") {
+		return "", false
+	}
+	q := tail
+	if q == "" {
+		q = queryValue(rawQuery, "q")
+	}
+	if dec, err := url.QueryUnescape(q); err == nil {
+		q = dec
+	}
+	return strings.TrimSpace(q), true
+}
+
+func queryValue(raw, key string) string {
+	for _, part := range strings.Split(raw, "&") {
+		k, v, ok := strings.Cut(part, "=")
+		if ok && strings.EqualFold(k, key) {
+			return v
+		}
+	}
+	return ""
 }
 
 // repairEmbeddedHTTP чинит URL, который Qt склеил, выкинув двоеточие из https://.
@@ -111,23 +143,26 @@ func splitHostPath(base string) (host, path string, ok bool) {
 }
 
 // launchTarget собирает цель из -url и позиционных аргументов (их передаёт desktop-файл, %u).
-func launchTarget(flagURL string, favorites bool, args []string) (direct string, openFavorites bool) {
+func launchTarget(flagURL string, favorites bool, args []string) (direct string, openFavorites bool, search string) {
 	openFavorites = favorites
-	if d, fav := normalizeLaunchArg(flagURL); flagURL != "" {
-		if fav {
-			openFavorites = true
-		} else {
-			direct = d
+	take := func(raw string) {
+		if strings.TrimSpace(raw) == "" {
+			return
 		}
-	}
-	for _, arg := range args {
-		d, fav := normalizeLaunchArg(arg)
+		d, fav, q := normalizeLaunchArg(raw)
 		if fav {
 			openFavorites = true
+		}
+		if q != "" && search == "" {
+			search = q
 		}
 		if d != "" && direct == "" {
 			direct = d
 		}
 	}
-	return direct, openFavorites
+	take(flagURL)
+	for _, arg := range args {
+		take(arg)
+	}
+	return direct, openFavorites, search
 }

@@ -38,6 +38,7 @@ cp rezka-fzf ~/.local/bin/
 rezka-fzf                          # поиск
 rezka-fzf -favorites               # сразу открыть избранное
 rezka-fzf -url 434365              # открыть по ID, slug или полной ссылке
+rezka-fzf -search 'хищник'        # сразу список результатов
 rezka-fzf 'rezka://434365'         # то же через URI-схему (так вызывает desktop-файл)
 rezka-fzf -authFile ~/.rezka-auth  # логин и пароль из файла
 rezka-fzf -menu gofer              # принудительно выбрать меню
@@ -68,9 +69,26 @@ rezka://films/drama/123-title.html
 rezka://hdrezka.ag/123-title.html
 rezka://https://hdrezka.ag/123-title.html
 rezka://favorites
+rezka://search/хищник
+rezka://search?q=хищник+1987
 ```
 
 Тот же аргумент можно передать в `-url` или позиционно. Из нескольких ссылок берётся первая.
+`search?q=` понимает плюс как пробел: так `url.QueryEscape` в Gofer подставляет `%s`.
+
+Поиск из Gofer — префикс в `~/.config/gofer/config.toml`, пересобирать лаунчер не нужно. `r:` уже Reddit, короткий префикс rezka — `rz:`:
+
+```toml
+[[engines]]
+prefix = "rz:"
+name   = "HDRezka"
+url    = "rezka://search?q=%s"
+
+[[engines]]
+prefix = "f:"
+name   = "Filmix"
+url    = "filmix://search?q=%s"
+```
 
 Браузер при первом открытии `rezka://` спрашивает подтверждение.
 Ручная установка обработчика (пакет ставит desktop-файл сам):
