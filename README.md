@@ -11,7 +11,7 @@
 
 - поиск и просмотр фильмов и сериалов, выбор озвучки, сезона, серии и качества;
 - избранное с отметками просмотренных серий (✓);
-- сохранение плейлиста `.m3u` в текущий каталог (`mpv файл.m3u` или `vlc файл.m3u`);
+- сохранение плейлиста `.m3u` в `~/tmp/rezka-fzf` и выбор его из меню;
 - два бэкенда меню: fzf (в терминале) и Gofer (с хоткея, без терминала);
 - плееры: mpv, vlc, celluloid, post2mpv-menu или любая своя команда;
 - вход в аккаунт, прокси, cookies для зеркал за Cloudflare (Anubis проходится автоматически).
@@ -54,6 +54,7 @@ rezka-fzf -player mpv -hls         # плеер и предпочтение HLS
 | `-player NAME` | `auto`, `mpv`, `vlc`, `celluloid`, `post2mpv-menu` или своя команда |
 | `-player-args "..."` | дополнительные аргументы плееру |
 | `-hls` | предпочитать HLS вместо MP4 |
+| `-playlist-dir PATH` | каталог `.m3u` вместо `~/tmp/rezka-fzf` |
 
 `-menu auto`: из терминала берётся fzf, без терминала (например, хоткей Sway/Hyprland/Niri или `rezka://`) — Gofer.
 
@@ -114,7 +115,10 @@ menu: auto              # auto | fzf | gofer
 gofer_cmd: "gofer --prompt={prompt}" # шаблон dmenu; {prompt} — заголовок списка
 proxy: ""               # http(s):// или socks5://
 cookies: ""             # "cf_clearance=...;..." для зеркал за Cloudflare
+playlist_dir: ""        # пусто = ~/tmp/rezka-fzf; иначе каталог для .m3u
 ```
+
+Плейлисты пишутся в этот каталог, а не в текущий. Список — пункт **Playlists** в меню карточки и после отмены поиска. Каталог меняется флагом `-playlist-dir`.
 
 Избранное хранится в `~/.config/rezka-fzf/favorites.yaml` (формат тоже совместим).
 

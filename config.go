@@ -13,15 +13,16 @@ import (
 // Settings — содержимое ~/.config/rezka-fzf/config.yaml
 // (формат совместим с Python-версией; новые ключи необязательны).
 type Settings struct {
-	URL      string `yaml:"url"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-	Player   string `yaml:"player"`                // auto | mpv | vlc | celluloid | post2mpv-menu | команда
-	PlayerArgs string `yaml:"player_args,omitempty"` // доп. аргументы плееру, напр. "-a play" для post2mpv-menu
-	Menu     string `yaml:"menu,omitempty"`      // auto | fzf | gofer
-	GoferCmd string `yaml:"gofer_cmd,omitempty"` // шаблон запуска gofer, {prompt} подставляется
-	Proxy    string `yaml:"proxy,omitempty"`
-	Cookies  string `yaml:"cookies,omitempty"` // "name=value;name=value" (Cloudflare и т.п.)
+	URL         string `yaml:"url"`
+	Username    string `yaml:"username"`
+	Password    string `yaml:"password"`
+	Player      string `yaml:"player"`                // auto | mpv | vlc | celluloid | post2mpv-menu | команда
+	PlayerArgs  string `yaml:"player_args,omitempty"` // доп. аргументы плееру, напр. "-a play" для post2mpv-menu
+	Menu        string `yaml:"menu,omitempty"`        // auto | fzf | gofer
+	GoferCmd    string `yaml:"gofer_cmd,omitempty"`   // шаблон запуска gofer, {prompt} подставляется
+	Proxy       string `yaml:"proxy,omitempty"`
+	Cookies     string `yaml:"cookies,omitempty"`      // "name=value;name=value" (Cloudflare и т.п.)
+	PlaylistDir string `yaml:"playlist_dir,omitempty"` // пусто = ~/tmp/rezka-fzf
 }
 
 // Favorite — запись в favorites.yaml (формат совместим с Python-версией).
@@ -36,8 +37,8 @@ type Favorite struct {
 type Config struct {
 	Settings
 	dir     string
-	path     string
-	favPath  string
+	path    string
+	favPath string
 }
 
 func LoadConfig(authFile string) (*Config, error) {
@@ -75,6 +76,10 @@ func LoadConfig(authFile string) (*Config, error) {
 		}
 	}
 	return c, nil
+}
+
+func (c *Config) playlistDir() string {
+	return resolvePlaylistDir(c.PlaylistDir, "rezka-fzf")
 }
 
 func (c *Config) firstRun() error {

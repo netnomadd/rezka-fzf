@@ -17,6 +17,7 @@ func main() {
 	playerName := flag.String("player", "", "player: auto | mpv | vlc | celluloid | post2mpv-menu | command (overrides config)")
 	playerArgs := flag.String("player-args", "", "extra player arguments, e.g. \"-a play\" for post2mpv-menu")
 	hls := flag.Bool("hls", false, "prefer HLS stream over MP4")
+	playlistDir := flag.String("playlist-dir", "", "directory for saved .m3u playlists (default ~/tmp/rezka-fzf)")
 	flag.Parse()
 
 	directURL, openFavorites, query := launchTarget(*direct, *favorites, flag.Args())
@@ -34,6 +35,9 @@ func main() {
 	}
 	if *playerArgs != "" {
 		cfg.PlayerArgs = *playerArgs
+	}
+	if *playlistDir != "" {
+		cfg.PlaylistDir = *playlistDir
 	}
 
 	kind := cfg.Menu

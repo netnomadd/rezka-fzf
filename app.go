@@ -367,6 +367,7 @@ func (a *App) contentMenu() (string, bool) {
 	} else {
 		items = append(items, Item{Display: "Save playlist (.m3u)", Value: "export_movie"})
 	}
+	items = append(items, Item{Display: "Playlists", Value: "playlists"})
 
 	idStr := ""
 	if a.itemID != 0 {
@@ -471,6 +472,8 @@ func (a *App) contentLoop() {
 			a.exportSeries()
 		case "export_movie":
 			a.exportMovie()
+		case "playlists":
+			a.browsePlaylists()
 		}
 	}
 }
@@ -712,15 +715,16 @@ func (a *App) exportSeries() {
 	}
 
 	name := a.exportFileName(quality)
-	if err := os.WriteFile(name, []byte(m3uPlaylist(entries)), 0o644); err != nil {
+	path, err := writePlaylist(a.cfg.playlistDir(), name, []byte(m3uPlaylist(entries)))
+	if err != nil {
 		a.msg("Error: %v", err)
 		return
 	}
 	if failed > 0 {
-		a.msg("✓ %d episodes, %d failed (%s) → %s", len(entries), failed, quality, name)
+		a.msg("✓ %d episodes, %d failed (%s) → %s", len(entries), failed, quality, path)
 		return
 	}
-	a.msg("✓ %d episodes (%s) → %s", len(entries), quality, name)
+	a.msg("✓ %d episodes (%s) → %s", len(entries), quality, path)
 }
 
 func (a *App) exportMovie() {
@@ -745,11 +749,12 @@ func (a *App) exportMovie() {
 	title := clean(a.video.Title)
 	name := a.exportFileName(quality)
 	body := m3uPlaylist([]m3uEntry{{title: title, url: urls[0]}})
-	if err := os.WriteFile(name, []byte(body), 0o644); err != nil {
+	path, err := writePlaylist(a.cfg.playlistDir(), name, []byte(body))
+	if err != nil {
 		a.msg("Error: %v", err)
 		return
 	}
-	a.msg("✓ %s (%s) → %s", title, quality, name)
+	a.msg("✓ %s (%s) → %s", title, quality, path)
 }
 
 type m3uEntry struct {
@@ -819,13 +824,22 @@ func (a *App) Run(openFavorites bool, initialQuery string) {
 			if !ok {
 				items := []Item{
 					{Display: "Open favorites", Value: "favs"},
+					{Display: "Playlists", Value: "lists"},
 					{Display: "Exit", Value: "exit"},
 				}
 				idx, sel := a.menu.Select("", items)
-				if !sel || idx != 0 {
+				if !sel {
 					return
 				}
-				url, id, ok = a.browseFavorites()
+				switch items[idx].Value.(string) {
+				case "favs":
+					url, id, ok = a.browseFavorites()
+				case "lists":
+					a.browsePlaylists()
+					continue
+				default:
+					return
+				}
 				if !ok {
 					continue
 				}
